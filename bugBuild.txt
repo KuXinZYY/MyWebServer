@@ -1,0 +1,40 @@
+碰到的困难:
+
+1、第一个Segmentation Fault产生了CoreDump文件，通过调试发现是因为
+    char *p = NULL: *p = 'c';   这种情况必定产生段错误。
+2、第二个Segmentation Fault产生了CoreDump文件，通过调试发现是因为
+    threads_.resize(5); 这里的resize在于先将vector内存空间重新调整大小，然后将其元素通过构造函数
+    初始化，因为内部元素是指针，所以初始化为0，那么相当于访问了0x00地址，必然产生coredump文件。
+3、对于LOG的实现会有一个Bug，如果主线程写入的日志比较少，并且先于后台日志线程结束，那么虽然后台线程析构函数flush了缓冲区，那么也会写不进去。
+    初步定位，可能是pthread_join的原因。
+    LOG格式后续可以继续优化
+
+    int main(void)
+    {
+        //测试类型重载   17 lines
+        std::cout << "----------type test-----------" << std::endl;
+
+        Logger::setLogFileName(std::string("Test.log"));
+
+        LOG << 0;
+        LOG << 1234567890123;
+        LOG << 1.0f;
+        LOG << 3.1415926;
+        LOG << (short) 1;
+        LOG << (long long) 1;
+        LOG << (unsigned int) 1;
+        LOG << (unsigned long) 1;
+        LOG << (long double) 1.6555556;
+        LOG << (unsigned long long) 1;
+        LOG << 'c';
+        LOG << "abcdefg";
+        LOG << "fdfefg";
+        LOG << "fdfdfdefg";
+        LOG << "abfdffg";
+        LOG << "aFdfdefg";
+        LOG << string("This is a string");//注意临时对象属于右值,不允许修改其值,因此必须使用常量引用.
+
+        //sleep(1); 如果主线程没有sleep,那么文件写入失败
+
+        return 0;
+     }
