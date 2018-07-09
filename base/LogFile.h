@@ -1,6 +1,6 @@
 #ifndef LOGFILE_H
 #define LOGFILE_H
-#include<fileutil.h>
+#include<base/FileUtil.h>
 
 /*
 再次封装AppendFile,用于自动flush操作,并且为了多线程安全使用,通过互斥锁保护起来.

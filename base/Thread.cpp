@@ -1,4 +1,4 @@
-#include"thread.h"
+#include"Thread.h"
 /*************************定义线程类全局变量**************************/
 namespace CurrentThread//初始化
 {

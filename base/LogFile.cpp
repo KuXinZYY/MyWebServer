@@ -1,4 +1,4 @@
-#include "logfile.h"
+#include "LogFile.h"
 
 LogFile::LogFile(const std::string &basename , int autoFlushEveryN)
     : basename_(basename),

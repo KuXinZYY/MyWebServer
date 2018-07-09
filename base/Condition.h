@@ -1,7 +1,7 @@
 #ifndef CONDITION_H
 #define CONDITION_H
 
-#include"mutexlock.h"
+#include"MutexLock.h"
 #include<pthread.h>
 #include<time.h>
 #include<errno.h>

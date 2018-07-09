@@ -1,8 +1,8 @@
 #ifndef COUNTDOWNLATCH_H
 #define COUNTDOWNLATCH_H
 
-#include"mutexlock.h"
-#include"condition.h"
+#include"MutexLock.h"
+#include"Condition.h"
 
 /*
 利用条件变量+互斥锁实现线程门栓功能

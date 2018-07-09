@@ -1,4 +1,4 @@
-#include "fileutil.h"
+#include "FileUtil.h"
 
 ///******************************************************************************//
 AppendFile::AppendFile(std::string filename)

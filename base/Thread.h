@@ -4,7 +4,7 @@
 /*
 封装pthread_create
 */
-#include"currentthread.h"
+#include"CurrentThread.h"
 
 #include<assert.h>
 #include<memory.h>
@@ -17,7 +17,7 @@
 
 #include<pthread.h>
 #include<string>
-#include<countdownlatch.h>
+#include"CountDownLatch.h"
 #include<functional>  //仿函数对象适配器
 
 class Thread{

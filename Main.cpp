@@ -1,11 +1,10 @@
-#include"thread.h"
+#include"base/Thread.h"
 #include<stdio.h>
 #include<binders.h>
-#include<threadpool.h>
-#include<fileutil.h>
+#include"base/ThreadPool.h"
+#include"base/FileUtil.h"
 /*
  * 测试线程创建
-
 
 void threadFunc()//获取线程tid
 {
@@ -139,7 +138,7 @@ int main(void)
 /*
 测试LOG宏定义
 */
-#include"logging.h"
+#include"base/Logging.h"
 #include<iostream>
 void threadFunc()
 {

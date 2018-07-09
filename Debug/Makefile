@@ -48,23 +48,32 @@ OBJECTS_DIR   = ./
 
 ####### Files
 
-SOURCES       = ../main.cpp \
-		../thread.cpp \
-		../threadpool.cpp \
-		../countdownlatch.cpp \
-		../fileutil.cpp \
-		../logfile.cpp \
-		../asynlogging.cpp \
-		../logging.cpp 
-OBJECTS       = main.o \
-		thread.o \
-		threadpool.o \
-		countdownlatch.o \
-		fileutil.o \
-		logfile.o \
-		asynlogging.o \
-		logging.o
+SOURCES       = ../base/AsynLogging.cpp \
+		../base/CountDownLatch.cpp \
+		../base/FileUtil.cpp \
+		../base/LogFile.cpp \
+		../base/Logging.cpp \
+		../base/Thread.cpp \
+		../base/ThreadPool.cpp \
+		../Epoll.cpp \
+		../FileEvent.cpp \
+		../EventLoop.cpp \
+		../Main.cpp 
+OBJECTS       = AsynLogging.o \
+		CountDownLatch.o \
+		FileUtil.o \
+		LogFile.o \
+		Logging.o \
+		Thread.o \
+		ThreadPool.o \
+		Epoll.o \
+		FileEvent.o \
+		EventLoop.o \
+		Main.o
 DIST          = ../bugBuild.txt \
+		MyWebServer \
+		valgrind.sh \
+		Test.log \
 		../../../../Qt5.7.0/5.7/gcc_64/mkspecs/features/spec_pre.prf \
 		../../../../Qt5.7.0/5.7/gcc_64/mkspecs/common/unix.conf \
 		../../../../Qt5.7.0/5.7/gcc_64/mkspecs/common/linux.conf \
@@ -212,24 +221,30 @@ DIST          = ../bugBuild.txt \
 		../../../../Qt5.7.0/5.7/gcc_64/mkspecs/features/exceptions.prf \
 		../../../../Qt5.7.0/5.7/gcc_64/mkspecs/features/yacc.prf \
 		../../../../Qt5.7.0/5.7/gcc_64/mkspecs/features/lex.prf \
-		../../MyWebServer.pro ../thread.h \
-		../condition.h \
-		../mutexlock.h \
-		../threadpool.h \
-		../countdownlatch.h \
-		../currentthread.h \
-		../fileutil.h \
-		../logfile.h \
-		../logstream.h \
-		../asynlogging.h \
-		../logging.h ../main.cpp \
-		../thread.cpp \
-		../threadpool.cpp \
-		../countdownlatch.cpp \
-		../fileutil.cpp \
-		../logfile.cpp \
-		../asynlogging.cpp \
-		../logging.cpp
+		../../MyWebServer.pro ../FileEvent.h \
+		../base/AsynLogging.h \
+		../base/Condition.h \
+		../base/CountDownLatch.h \
+		../base/CurrentThread.h \
+		../base/FileUtil.h \
+		../base/LogFile.h \
+		../base/Logging.h \
+		../base/LogStream.h \
+		../base/MutexLock.h \
+		../base/Thread.h \
+		../base/ThreadPool.h \
+		../Epoll.h \
+		../EventLoop.h ../base/AsynLogging.cpp \
+		../base/CountDownLatch.cpp \
+		../base/FileUtil.cpp \
+		../base/LogFile.cpp \
+		../base/Logging.cpp \
+		../base/Thread.cpp \
+		../base/ThreadPool.cpp \
+		../Epoll.cpp \
+		../FileEvent.cpp \
+		../EventLoop.cpp \
+		../Main.cpp
 QMAKE_TARGET  = MyWebServer
 DESTDIR       = 
 TARGET        = MyWebServer
@@ -554,8 +569,8 @@ dist: distdir FORCE
 distdir: FORCE
 	@test -d $(DISTDIR) || mkdir -p $(DISTDIR)
 	$(COPY_FILE) --parents $(DIST) $(DISTDIR)/
-	$(COPY_FILE) --parents ../thread.h ../condition.h ../mutexlock.h ../threadpool.h ../countdownlatch.h ../currentthread.h ../fileutil.h ../logfile.h ../logstream.h ../asynlogging.h ../logging.h $(DISTDIR)/
-	$(COPY_FILE) --parents ../main.cpp ../thread.cpp ../threadpool.cpp ../countdownlatch.cpp ../fileutil.cpp ../logfile.cpp ../asynlogging.cpp ../logging.cpp $(DISTDIR)/
+	$(COPY_FILE) --parents ../FileEvent.h ../base/AsynLogging.h ../base/Condition.h ../base/CountDownLatch.h ../base/CurrentThread.h ../base/FileUtil.h ../base/LogFile.h ../base/Logging.h ../base/LogStream.h ../base/MutexLock.h ../base/Thread.h ../base/ThreadPool.h ../Epoll.h ../EventLoop.h $(DISTDIR)/
+	$(COPY_FILE) --parents ../base/AsynLogging.cpp ../base/CountDownLatch.cpp ../base/FileUtil.cpp ../base/LogFile.cpp ../base/Logging.cpp ../base/Thread.cpp ../base/ThreadPool.cpp ../Epoll.cpp ../FileEvent.cpp ../EventLoop.cpp ../Main.cpp $(DISTDIR)/
 
 
 clean: compiler_clean 
@@ -595,70 +610,65 @@ compiler_clean:
 
 ####### Compile
 
-main.o: ../main.cpp ../thread.h \
-		../currentthread.h \
-		../countdownlatch.h \
-		../mutexlock.h \
-		../condition.h \
-		../threadpool.h \
-		../fileutil.h \
-		../logging.h \
-		../logstream.h \
-		../asynlogging.h \
-		../logfile.h
-	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o main.o ../main.cpp
+AsynLogging.o: ../base/AsynLogging.cpp ../base/AsynLogging.h \
+		../base/MutexLock.h \
+		../base/CountDownLatch.h \
+		../base/Condition.h \
+		../base/Thread.h \
+		../base/CurrentThread.h \
+		../base/LogFile.h \
+		../base/FileUtil.h \
+		../base/LogStream.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o AsynLogging.o ../base/AsynLogging.cpp
 
-thread.o: ../thread.cpp ../thread.h \
-		../currentthread.h \
-		../countdownlatch.h \
-		../mutexlock.h \
-		../condition.h
-	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o thread.o ../thread.cpp
+CountDownLatch.o: ../base/CountDownLatch.cpp ../base/CountDownLatch.h \
+		../base/MutexLock.h \
+		../base/Condition.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o CountDownLatch.o ../base/CountDownLatch.cpp
 
-threadpool.o: ../threadpool.cpp ../threadpool.h \
-		../mutexlock.h \
-		../condition.h \
-		../thread.h \
-		../currentthread.h \
-		../countdownlatch.h
-	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o threadpool.o ../threadpool.cpp
+FileUtil.o: ../base/FileUtil.cpp ../base/FileUtil.h \
+		../base/MutexLock.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o FileUtil.o ../base/FileUtil.cpp
 
-countdownlatch.o: ../countdownlatch.cpp ../countdownlatch.h \
-		../mutexlock.h \
-		../condition.h
-	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o countdownlatch.o ../countdownlatch.cpp
+LogFile.o: ../base/LogFile.cpp ../base/LogFile.h \
+		../base/FileUtil.h \
+		../base/MutexLock.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o LogFile.o ../base/LogFile.cpp
 
-fileutil.o: ../fileutil.cpp ../fileutil.h \
-		../mutexlock.h
-	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o fileutil.o ../fileutil.cpp
+Logging.o: ../base/Logging.cpp ../base/Logging.h \
+		../base/LogStream.h \
+		../base/AsynLogging.h \
+		../base/MutexLock.h \
+		../base/CountDownLatch.h \
+		../base/Condition.h \
+		../base/Thread.h \
+		../base/CurrentThread.h \
+		../base/LogFile.h \
+		../base/FileUtil.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o Logging.o ../base/Logging.cpp
 
-logfile.o: ../logfile.cpp ../logfile.h \
-		../fileutil.h \
-		../mutexlock.h
-	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o logfile.o ../logfile.cpp
+Thread.o: ../base/Thread.cpp ../base/Thread.h \
+		../base/CurrentThread.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o Thread.o ../base/Thread.cpp
 
-asynlogging.o: ../asynlogging.cpp ../asynlogging.h \
-		../mutexlock.h \
-		../countdownlatch.h \
-		../condition.h \
-		../thread.h \
-		../currentthread.h \
-		../logfile.h \
-		../fileutil.h \
-		../logstream.h
-	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o asynlogging.o ../asynlogging.cpp
+ThreadPool.o: ../base/ThreadPool.cpp ../base/ThreadPool.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o ThreadPool.o ../base/ThreadPool.cpp
 
-logging.o: ../logging.cpp ../logging.h \
-		../logstream.h \
-		../asynlogging.h \
-		../mutexlock.h \
-		../countdownlatch.h \
-		../condition.h \
-		../thread.h \
-		../currentthread.h \
-		../logfile.h \
-		../fileutil.h
-	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o logging.o ../logging.cpp
+Epoll.o: ../Epoll.cpp ../Epoll.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o Epoll.o ../Epoll.cpp
+
+FileEvent.o: ../FileEvent.cpp ../FileEvent.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o FileEvent.o ../FileEvent.cpp
+
+EventLoop.o: ../EventLoop.cpp ../EventLoop.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o EventLoop.o ../EventLoop.cpp
+
+Main.o: ../Main.cpp ../base/Thread.h \
+		../base/CurrentThread.h \
+		../base/ThreadPool.h \
+		../base/FileUtil.h \
+		../base/MutexLock.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o Main.o ../Main.cpp
 
 ####### Install
 

@@ -1,4 +1,4 @@
-#include "asynlogging.h"
+#include "AsynLogging.h"
 
 AsynLogging::AsynLogging(const std::string logName , int flushInterval)
     : thread_(std::bind(&AsynLogging::threadFunc , this) , std::string("logThread") ),

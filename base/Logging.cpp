@@ -1,4 +1,4 @@
-#include "logging.h"
+#include "Logging.h"
 #include<memory>
 static pthread_once_t once_control_ = PTHREAD_ONCE_INIT;
 static std::shared_ptr<AsynLogging> AsyncLogger_;//静态对象

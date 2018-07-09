@@ -1,12 +1,12 @@
 #ifndef ASYNLOGGING_H
 #define ASYNLOGGING_H
 
-#include"mutexlock.h"
-#include"countdownlatch.h"
-#include"thread.h"
+#include"MutexLock.h"
+#include"CountDownLatch.h"
+#include"Thread.h"
 #include<functional>
-#include"logfile.h"
-#include"logstream.h"
+#include"LogFile.h"
+#include"LogStream.h"
 /*
 多线程异步日志:
 1.多个线程同时写一个日志文件,需要通过锁同步机制.
