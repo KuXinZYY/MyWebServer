@@ -58,7 +58,13 @@ SOURCES       = ../base/AsynLogging.cpp \
 		../Epoll.cpp \
 		../FileEvent.cpp \
 		../EventLoop.cpp \
-		../Main.cpp 
+		../Main.cpp \
+		../TimerEvent.cpp \
+		../EventLoopThread.cpp \
+		../EventLoopThreadPool.cpp \
+		../Server.cpp \
+		../Util.cpp \
+		../ServerConnection.cpp 
 OBJECTS       = AsynLogging.o \
 		CountDownLatch.o \
 		FileUtil.o \
@@ -69,7 +75,13 @@ OBJECTS       = AsynLogging.o \
 		Epoll.o \
 		FileEvent.o \
 		EventLoop.o \
-		Main.o
+		Main.o \
+		TimerEvent.o \
+		EventLoopThread.o \
+		EventLoopThreadPool.o \
+		Server.o \
+		Util.o \
+		ServerConnection.o
 DIST          = ../bugBuild.txt \
 		MyWebServer \
 		valgrind.sh \
@@ -234,7 +246,13 @@ DIST          = ../bugBuild.txt \
 		../base/Thread.h \
 		../base/ThreadPool.h \
 		../Epoll.h \
-		../EventLoop.h ../base/AsynLogging.cpp \
+		../EventLoop.h \
+		../TimeEvent.h \
+		../EventLoopThread.h \
+		../EventLoopThreadPool.h \
+		../Server.h \
+		../Util.h \
+		../ServerConnection.h ../base/AsynLogging.cpp \
 		../base/CountDownLatch.cpp \
 		../base/FileUtil.cpp \
 		../base/LogFile.cpp \
@@ -244,7 +262,13 @@ DIST          = ../bugBuild.txt \
 		../Epoll.cpp \
 		../FileEvent.cpp \
 		../EventLoop.cpp \
-		../Main.cpp
+		../Main.cpp \
+		../TimerEvent.cpp \
+		../EventLoopThread.cpp \
+		../EventLoopThreadPool.cpp \
+		../Server.cpp \
+		../Util.cpp \
+		../ServerConnection.cpp
 QMAKE_TARGET  = MyWebServer
 DESTDIR       = 
 TARGET        = MyWebServer
@@ -569,8 +593,8 @@ dist: distdir FORCE
 distdir: FORCE
 	@test -d $(DISTDIR) || mkdir -p $(DISTDIR)
 	$(COPY_FILE) --parents $(DIST) $(DISTDIR)/
-	$(COPY_FILE) --parents ../FileEvent.h ../base/AsynLogging.h ../base/Condition.h ../base/CountDownLatch.h ../base/CurrentThread.h ../base/FileUtil.h ../base/LogFile.h ../base/Logging.h ../base/LogStream.h ../base/MutexLock.h ../base/Thread.h ../base/ThreadPool.h ../Epoll.h ../EventLoop.h $(DISTDIR)/
-	$(COPY_FILE) --parents ../base/AsynLogging.cpp ../base/CountDownLatch.cpp ../base/FileUtil.cpp ../base/LogFile.cpp ../base/Logging.cpp ../base/Thread.cpp ../base/ThreadPool.cpp ../Epoll.cpp ../FileEvent.cpp ../EventLoop.cpp ../Main.cpp $(DISTDIR)/
+	$(COPY_FILE) --parents ../FileEvent.h ../base/AsynLogging.h ../base/Condition.h ../base/CountDownLatch.h ../base/CurrentThread.h ../base/FileUtil.h ../base/LogFile.h ../base/Logging.h ../base/LogStream.h ../base/MutexLock.h ../base/Thread.h ../base/ThreadPool.h ../Epoll.h ../EventLoop.h ../TimeEvent.h ../EventLoopThread.h ../EventLoopThreadPool.h ../Server.h ../Util.h ../ServerConnection.h $(DISTDIR)/
+	$(COPY_FILE) --parents ../base/AsynLogging.cpp ../base/CountDownLatch.cpp ../base/FileUtil.cpp ../base/LogFile.cpp ../base/Logging.cpp ../base/Thread.cpp ../base/ThreadPool.cpp ../Epoll.cpp ../FileEvent.cpp ../EventLoop.cpp ../Main.cpp ../TimerEvent.cpp ../EventLoopThread.cpp ../EventLoopThreadPool.cpp ../Server.cpp ../Util.cpp ../ServerConnection.cpp $(DISTDIR)/
 
 
 clean: compiler_clean 
@@ -648,27 +672,162 @@ Logging.o: ../base/Logging.cpp ../base/Logging.h \
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o Logging.o ../base/Logging.cpp
 
 Thread.o: ../base/Thread.cpp ../base/Thread.h \
-		../base/CurrentThread.h
+		../base/CurrentThread.h \
+		../base/CountDownLatch.h \
+		../base/MutexLock.h \
+		../base/Condition.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o Thread.o ../base/Thread.cpp
 
-ThreadPool.o: ../base/ThreadPool.cpp ../base/ThreadPool.h
+ThreadPool.o: ../base/ThreadPool.cpp ../base/ThreadPool.h \
+		../base/MutexLock.h \
+		../base/Condition.h \
+		../base/Thread.h \
+		../base/CurrentThread.h \
+		../base/CountDownLatch.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o ThreadPool.o ../base/ThreadPool.cpp
 
-Epoll.o: ../Epoll.cpp ../Epoll.h
+Epoll.o: ../Epoll.cpp ../Epoll.h \
+		../FileEvent.h \
+		../EventLoop.h \
+		../TimeEvent.h \
+		../base/Logging.h \
+		../base/LogStream.h \
+		../base/AsynLogging.h \
+		../base/MutexLock.h \
+		../base/CountDownLatch.h \
+		../base/Condition.h \
+		../base/Thread.h \
+		../base/CurrentThread.h \
+		../base/LogFile.h \
+		../base/FileUtil.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o Epoll.o ../Epoll.cpp
 
-FileEvent.o: ../FileEvent.cpp ../FileEvent.h
+FileEvent.o: ../FileEvent.cpp ../FileEvent.h \
+		../EventLoop.h \
+		../Epoll.h \
+		../TimeEvent.h \
+		../base/Logging.h \
+		../base/LogStream.h \
+		../base/AsynLogging.h \
+		../base/MutexLock.h \
+		../base/CountDownLatch.h \
+		../base/Condition.h \
+		../base/Thread.h \
+		../base/CurrentThread.h \
+		../base/LogFile.h \
+		../base/FileUtil.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o FileEvent.o ../FileEvent.cpp
 
-EventLoop.o: ../EventLoop.cpp ../EventLoop.h
+EventLoop.o: ../EventLoop.cpp ../EventLoop.h \
+		../Epoll.h \
+		../FileEvent.h \
+		../TimeEvent.h \
+		../base/Logging.h \
+		../base/LogStream.h \
+		../base/AsynLogging.h \
+		../base/MutexLock.h \
+		../base/CountDownLatch.h \
+		../base/Condition.h \
+		../base/Thread.h \
+		../base/CurrentThread.h \
+		../base/LogFile.h \
+		../base/FileUtil.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o EventLoop.o ../EventLoop.cpp
 
 Main.o: ../Main.cpp ../base/Thread.h \
 		../base/CurrentThread.h \
+		../base/CountDownLatch.h \
+		../base/MutexLock.h \
+		../base/Condition.h \
 		../base/ThreadPool.h \
 		../base/FileUtil.h \
-		../base/MutexLock.h
+		../EventLoop.h \
+		../Epoll.h \
+		../FileEvent.h \
+		../TimeEvent.h \
+		../base/Logging.h \
+		../base/LogStream.h \
+		../base/AsynLogging.h \
+		../base/LogFile.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o Main.o ../Main.cpp
+
+TimerEvent.o: ../TimerEvent.cpp ../TimeEvent.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o TimerEvent.o ../TimerEvent.cpp
+
+EventLoopThread.o: ../EventLoopThread.cpp ../EventLoopThread.h \
+		../base/Thread.h \
+		../base/CurrentThread.h \
+		../base/CountDownLatch.h \
+		../base/MutexLock.h \
+		../base/Condition.h \
+		../EventLoop.h \
+		../Epoll.h \
+		../FileEvent.h \
+		../TimeEvent.h \
+		../base/Logging.h \
+		../base/LogStream.h \
+		../base/AsynLogging.h \
+		../base/LogFile.h \
+		../base/FileUtil.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o EventLoopThread.o ../EventLoopThread.cpp
+
+EventLoopThreadPool.o: ../EventLoopThreadPool.cpp ../EventLoopThreadPool.h \
+		../EventLoopThread.h \
+		../base/Thread.h \
+		../base/CurrentThread.h \
+		../base/CountDownLatch.h \
+		../base/MutexLock.h \
+		../base/Condition.h \
+		../EventLoop.h \
+		../Epoll.h \
+		../FileEvent.h \
+		../TimeEvent.h \
+		../base/Logging.h \
+		../base/LogStream.h \
+		../base/AsynLogging.h \
+		../base/LogFile.h \
+		../base/FileUtil.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o EventLoopThreadPool.o ../EventLoopThreadPool.cpp
+
+Server.o: ../Server.cpp ../Server.h \
+		../FileEvent.h \
+		../EventLoop.h \
+		../Epoll.h \
+		../TimeEvent.h \
+		../base/Logging.h \
+		../base/LogStream.h \
+		../base/AsynLogging.h \
+		../base/MutexLock.h \
+		../base/CountDownLatch.h \
+		../base/Condition.h \
+		../base/Thread.h \
+		../base/CurrentThread.h \
+		../base/LogFile.h \
+		../base/FileUtil.h \
+		../Util.h \
+		../EventLoopThreadPool.h \
+		../EventLoopThread.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o Server.o ../Server.cpp
+
+Util.o: ../Util.cpp ../Util.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o Util.o ../Util.cpp
+
+ServerConnection.o: ../ServerConnection.cpp ../ServerConnection.h \
+		../FileEvent.h \
+		../EventLoop.h \
+		../Epoll.h \
+		../TimeEvent.h \
+		../base/Logging.h \
+		../base/LogStream.h \
+		../base/AsynLogging.h \
+		../base/MutexLock.h \
+		../base/CountDownLatch.h \
+		../base/Condition.h \
+		../base/Thread.h \
+		../base/CurrentThread.h \
+		../base/LogFile.h \
+		../base/FileUtil.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o ServerConnection.o ../ServerConnection.cpp
 
 ####### Install
 

@@ -1,0 +1,128 @@
+2018-07-17 00:18:47 MainEventLoop(4818) create EventFd sucess = 4 ! - ../EventLoop.cpp:36
+2018-07-17 00:18:48 MainEventLoop(4818) Add FileEventFd , The fd is 4 - ../EventLoop.cpp:70
+2018-07-17 00:18:48 WorkEventLoop1(4820) create EventFd sucess = 8 ! - ../EventLoop.cpp:36
+2018-07-17 00:18:48 WorkEventLoop1(4820) Add FileEventFd , The fd is 8 - ../EventLoop.cpp:70
+2018-07-17 00:18:48 WorkEventLoop2(4821) create EventFd sucess = 10 ! - ../EventLoop.cpp:36
+2018-07-17 00:18:48 WorkEventLoop2(4821) Add FileEventFd , The fd is 10 - ../EventLoop.cpp:70
+2018-07-17 00:18:48 WorkEventLoop3(4822) create EventFd sucess = 12 ! - ../EventLoop.cpp:36
+2018-07-17 00:18:48 WorkEventLoop3(4822) Add FileEventFd , The fd is 12 - ../EventLoop.cpp:70
+2018-07-17 00:18:48 WorkEventLoop4(4823) create EventFd sucess = 14 ! - ../EventLoop.cpp:36
+2018-07-17 00:18:48 WorkEventLoop4(4823) Add FileEventFd , The fd is 14 - ../EventLoop.cpp:70
+2018-07-17 00:18:48 MainEventLoop(4818) Add FileEventFd , The fd is 5 - ../EventLoop.cpp:70
+2018-07-17 00:18:51 New connection from 127.0.0.1:35510 , The fd is 15 - ../Server.cpp:42
+2018-07-17 00:18:51 WorkEventLoop1(4820) Add FileEventFd , The fd is 15 - ../EventLoop.cpp:70
+2018-07-17 00:18:51 WorkEventLoop1(4820) readEventfd reads 8 and DoPendingCallBack 1 Times! - ../EventLoop.cpp:54
+2018-07-17 00:18:51 MainEventLoop(4818) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:20:42 logThread(4819) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:20:42 MainEventLoop(4818) quit! - ../EventLoop.cpp:97
+2018-07-17 00:20:44 MainEventLoop(4818) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:20:44 WorkEventLoop1(4820) readEventfd reads 8 and DoPendingCallBack 0 Times! - ../EventLoop.cpp:54
+2018-07-17 00:20:44 WorkEventLoop1(4820) quit! - ../EventLoop.cpp:97
+2018-07-17 00:20:44 MainEventLoop(4818) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:20:44 WorkEventLoop2(4821) readEventfd reads 8 and DoPendingCallBack 0 Times! - ../EventLoop.cpp:54
+2018-07-17 00:20:44 WorkEventLoop2(4821) quit! - ../EventLoop.cpp:97
+2018-07-17 00:20:44 MainEventLoop(4818) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:20:44 WorkEventLoop3(4822) readEventfd reads 8 and DoPendingCallBack 0 Times! - ../EventLoop.cpp:54
+2018-07-17 00:20:44 WorkEventLoop3(4822) quit! - ../EventLoop.cpp:97
+2018-07-17 00:20:44 MainEventLoop(4818) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:20:44 WorkEventLoop4(4823) readEventfd reads 8 and DoPendingCallBack 0 Times! - ../EventLoop.cpp:54
+2018-07-17 00:20:44 WorkEventLoop4(4823) quit! - ../EventLoop.cpp:97
+2018-07-17 00:21:45 MainEventLoop(4887) create EventFd sucess = 4 ! - ../EventLoop.cpp:36
+2018-07-17 00:21:45 MainEventLoop(4887) Add FileEventFd , The fd is 4 - ../EventLoop.cpp:70
+2018-07-17 00:21:45 WorkEventLoop1(4889) create EventFd sucess = 8 ! - ../EventLoop.cpp:36
+2018-07-17 00:21:45 WorkEventLoop1(4889) Add FileEventFd , The fd is 8 - ../EventLoop.cpp:70
+2018-07-17 00:21:45 WorkEventLoop2(4890) create EventFd sucess = 10 ! - ../EventLoop.cpp:36
+2018-07-17 00:21:45 WorkEventLoop2(4890) Add FileEventFd , The fd is 10 - ../EventLoop.cpp:70
+2018-07-17 00:21:45 WorkEventLoop3(4891) create EventFd sucess = 12 ! - ../EventLoop.cpp:36
+2018-07-17 00:21:45 WorkEventLoop3(4891) Add FileEventFd , The fd is 12 - ../EventLoop.cpp:70
+2018-07-17 00:21:45 WorkEventLoop4(4892) create EventFd sucess = 14 ! - ../EventLoop.cpp:36
+2018-07-17 00:21:45 WorkEventLoop4(4892) Add FileEventFd , The fd is 14 - ../EventLoop.cpp:70
+2018-07-17 00:21:45 MainEventLoop(4887) Add FileEventFd , The fd is 5 - ../EventLoop.cpp:70
+2018-07-17 00:21:49 New connection from 127.0.0.1:35520 , The fd is 15 - ../Server.cpp:42
+2018-07-17 00:21:49 WorkEventLoop1(4889) Add FileEventFd , The fd is 15 - ../EventLoop.cpp:70
+2018-07-17 00:21:49 WorkEventLoop1(4889) readEventfd reads 8 and DoPendingCallBack 1 Times! - ../EventLoop.cpp:54
+2018-07-17 00:21:49 MainEventLoop(4887) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:22:08 WorkEventLoop1(4889) Resqust: 23
+ - ../ServerConnection.cpp:83
+2018-07-17 00:22:08 FD = 15,23
+****** - ../ServerConnection.cpp:103
+2018-07-17 00:22:48 logThread(4888) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:22:48 MainEventLoop(4887) quit! - ../EventLoop.cpp:97
+2018-07-17 00:22:50 MainEventLoop(4887) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:22:50 WorkEventLoop1(4889) readEventfd reads 8 and DoPendingCallBack 0 Times! - ../EventLoop.cpp:54
+2018-07-17 00:22:50 WorkEventLoop1(4889) quit! - ../EventLoop.cpp:97
+2018-07-17 00:22:50 MainEventLoop(4887) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:22:50 WorkEventLoop2(4890) readEventfd reads 8 and DoPendingCallBack 0 Times! - ../EventLoop.cpp:54
+2018-07-17 00:22:50 WorkEventLoop2(4890) quit! - ../EventLoop.cpp:97
+2018-07-17 00:22:50 MainEventLoop(4887) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:22:50 WorkEventLoop3(4891) readEventfd reads 8 and DoPendingCallBack 0 Times! - ../EventLoop.cpp:54
+2018-07-17 00:22:50 WorkEventLoop3(4891) quit! - ../EventLoop.cpp:97
+2018-07-17 00:22:50 MainEventLoop(4887) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:22:50 WorkEventLoop4(4892) readEventfd reads 8 and DoPendingCallBack 0 Times! - ../EventLoop.cpp:54
+2018-07-17 00:22:50 WorkEventLoop4(4892) quit! - ../EventLoop.cpp:97
+2018-07-17 00:22:57 MainEventLoop(4910) create EventFd sucess = 4 ! - ../EventLoop.cpp:36
+2018-07-17 00:22:57 MainEventLoop(4910) Add FileEventFd , The fd is 4 - ../EventLoop.cpp:70
+2018-07-17 00:22:57 WorkEventLoop1(4920) create EventFd sucess = 8 ! - ../EventLoop.cpp:36
+2018-07-17 00:22:57 WorkEventLoop1(4920) Add FileEventFd , The fd is 8 - ../EventLoop.cpp:70
+2018-07-17 00:22:57 WorkEventLoop2(4921) create EventFd sucess = 10 ! - ../EventLoop.cpp:36
+2018-07-17 00:22:57 WorkEventLoop2(4921) Add FileEventFd , The fd is 10 - ../EventLoop.cpp:70
+2018-07-17 00:22:57 WorkEventLoop3(4922) create EventFd sucess = 12 ! - ../EventLoop.cpp:36
+2018-07-17 00:22:57 WorkEventLoop3(4922) Add FileEventFd , The fd is 12 - ../EventLoop.cpp:70
+2018-07-17 00:22:57 WorkEventLoop4(4923) create EventFd sucess = 14 ! - ../EventLoop.cpp:36
+2018-07-17 00:22:57 WorkEventLoop4(4923) Add FileEventFd , The fd is 14 - ../EventLoop.cpp:70
+2018-07-17 00:22:57 MainEventLoop(4910) Add FileEventFd , The fd is 6 - ../EventLoop.cpp:70
+2018-07-17 00:23:27 New connection from 127.0.0.1:35522 , The fd is 15 - ../Server.cpp:42
+2018-07-17 00:23:27 MainEventLoop(4910) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:23:27 WorkEventLoop1(4920) Add FileEventFd , The fd is 15 - ../EventLoop.cpp:70
+2018-07-17 00:23:27 WorkEventLoop1(4920) readEventfd reads 8 and DoPendingCallBack 1 Times! - ../EventLoop.cpp:54
+2018-07-17 00:23:34 WorkEventLoop1(4920) Resqust: 12323
+ - ../ServerConnection.cpp:83
+2018-07-17 00:23:34 FD = 15,12323
+****** - ../ServerConnection.cpp:103
+2018-07-17 00:24:53 MainEventLoop(5028) create EventFd sucess = 4 ! - ../EventLoop.cpp:36
+2018-07-17 00:24:53 MainEventLoop(5028) Add FileEventFd , The fd is 4 - ../EventLoop.cpp:70
+2018-07-17 00:24:53 WorkEventLoop1(5037) create EventFd sucess = 8 ! - ../EventLoop.cpp:36
+2018-07-17 00:24:53 WorkEventLoop1(5037) Add FileEventFd , The fd is 8 - ../EventLoop.cpp:70
+2018-07-17 00:24:53 WorkEventLoop2(5038) create EventFd sucess = 10 ! - ../EventLoop.cpp:36
+2018-07-17 00:24:53 WorkEventLoop2(5038) Add FileEventFd , The fd is 10 - ../EventLoop.cpp:70
+2018-07-17 00:24:53 WorkEventLoop3(5039) create EventFd sucess = 12 ! - ../EventLoop.cpp:36
+2018-07-17 00:24:53 WorkEventLoop3(5039) Add FileEventFd , The fd is 12 - ../EventLoop.cpp:70
+2018-07-17 00:24:53 WorkEventLoop4(5040) create EventFd sucess = 14 ! - ../EventLoop.cpp:36
+2018-07-17 00:24:53 WorkEventLoop4(5040) Add FileEventFd , The fd is 14 - ../EventLoop.cpp:70
+2018-07-17 00:24:53 MainEventLoop(5028) Add FileEventFd , The fd is 6 - ../EventLoop.cpp:70
+2018-07-17 00:25:11 New connection from 127.0.0.1:35530 , The fd is 15 - ../Server.cpp:42
+2018-07-17 00:25:11 MainEventLoop(5028) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:25:11 WorkEventLoop1(5037) Add FileEventFd , The fd is 15 - ../EventLoop.cpp:70
+2018-07-17 00:25:11 WorkEventLoop1(5037) readEventfd reads 8 and DoPendingCallBack 1 Times! - ../EventLoop.cpp:54
+2018-07-17 00:25:22 WorkEventLoop1(5037) Resqust: 1332324
+ - ../ServerConnection.cpp:83
+2018-07-17 00:25:22 FD = 15,1332324
+****** - ../ServerConnection.cpp:103
+2018-07-17 00:26:07 MainEventLoop(5087) create EventFd sucess = 4 ! - ../EventLoop.cpp:36
+2018-07-17 00:26:07 MainEventLoop(5087) Add FileEventFd , The fd is 4 - ../EventLoop.cpp:70
+2018-07-17 00:26:07 WorkEventLoop1(5096) create EventFd sucess = 8 ! - ../EventLoop.cpp:36
+2018-07-17 00:26:07 WorkEventLoop1(5096) Add FileEventFd , The fd is 8 - ../EventLoop.cpp:70
+2018-07-17 00:26:07 WorkEventLoop2(5097) create EventFd sucess = 10 ! - ../EventLoop.cpp:36
+2018-07-17 00:26:07 WorkEventLoop2(5097) Add FileEventFd , The fd is 10 - ../EventLoop.cpp:70
+2018-07-17 00:26:07 WorkEventLoop3(5098) create EventFd sucess = 12 ! - ../EventLoop.cpp:36
+2018-07-17 00:26:07 WorkEventLoop3(5098) Add FileEventFd , The fd is 12 - ../EventLoop.cpp:70
+2018-07-17 00:26:21 WorkEventLoop4(5107) create EventFd sucess = 14 ! - ../EventLoop.cpp:36
+2018-07-17 00:26:21 WorkEventLoop4(5107) Add FileEventFd , The fd is 14 - ../EventLoop.cpp:70
+2018-07-17 00:26:23 MainEventLoop(5087) Add FileEventFd , The fd is 6 - ../EventLoop.cpp:70
+2018-07-17 00:28:45 New connection from 127.0.0.1:35538 , The fd is 15 - ../Server.cpp:42
+2018-07-17 00:28:45 MainEventLoop(5087) writeEventfd writes 8 - ../EventLoop.cpp:61
+2018-07-17 00:28:45 WorkEventLoop1(5096) Add FileEventFd , The fd is 15 - ../EventLoop.cpp:70
+2018-07-17 00:28:45 WorkEventLoop1(5096) readEventfd reads 8 and DoPendingCallBack 1 Times! - ../EventLoop.cpp:54
+2018-07-17 00:29:21 WorkEventLoop1(5096) Resqust: wqwqw
+ - ../ServerConnection.cpp:83
+2018-07-17 00:29:21 FD = 15,wqwqw
+****** - ../ServerConnection.cpp:103
+2018-07-17 00:29:55 WorkEventLoop1(5096) Resqust: 
+ - ../ServerConnection.cpp:83
+2018-07-17 00:29:55 FD = 15,
+****** - ../ServerConnection.cpp:103
+2018-07-17 00:30:05 WorkEventLoop1(5096) Resqust: 
+ - ../ServerConnection.cpp:83
+2018-07-17 00:30:05 FD = 15,
+****** - ../ServerConnection.cpp:103
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              

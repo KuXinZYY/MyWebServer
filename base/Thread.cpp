@@ -10,7 +10,7 @@ namespace CurrentThread//初始化
     __thread int t_cachedTid = 0;
     __thread char t_tidString[32] = {};
     __thread int t_tidStringLength = 6;
-    __thread const char* t_threadName = "default";
+    __thread const char* t_threadName = "MainEventLoop";
 }
 
 pid_t gettid()//获取线程唯一的tid,用于通信
@@ -59,7 +59,7 @@ struct ThreadData{
         CurrentThread::t_threadName = name_.empty() ? "Thread" : name_.c_str();//从主线程获取当前线程名字.
         prctl(PR_SET_NAME, CurrentThread::t_threadName);//用于进程重命名，主进程、子进程使用不同的命令，便于命令ps -ef查看
         func_();//执行回调函数
-        CurrentThread::t_threadName = "finished";
+        //CurrentThread::t_threadName = "finished";
     }
 };
 

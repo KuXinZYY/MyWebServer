@@ -21,7 +21,12 @@ SOURCES += \
     FileEvent.cpp \
     EventLoop.cpp \
     Main.cpp \
-    TimerEvent.cpp
+    TimerEvent.cpp \
+    EventLoopThread.cpp \
+    EventLoopThreadPool.cpp \
+    Server.cpp \
+    Util.cpp \
+    ServerConnection.cpp
 
 HEADERS += \
     FileEvent.h \
@@ -38,7 +43,12 @@ HEADERS += \
     base/ThreadPool.h \
     Epoll.h \
     EventLoop.h \
-    TimeEvent.h
+    TimeEvent.h \
+    EventLoopThread.h \
+    EventLoopThreadPool.h \
+    Server.h \
+    Util.h \
+    ServerConnection.h
 
 DISTFILES += \
     bugBuild.txt \

@@ -38,3 +38,31 @@
 
         return 0;
      }
+
+4. 服务器程序规范
+       是否后台运行.
+       高效的日志系统.
+       有限状态机解析协议.
+       池.
+       IO复用.
+
+5.Syscall param epoll_ctl(event) points to uninitialised byte(s)unitialized bytes
+  这是valgrind提示的警告信息,告诉我们这个变量可能没有初始化就给你用了.
+  struct epoll_event event = {0};//avoid valgrind warning
+
+
+6.Accept(): Invalid Argument
+   (acceptFd = accept( listenFd_ ,(struct sockaddr *)&cliaddr ,  &length ) )
+   Your clientLength should contain the size of the structure pointed to by clientName.
+   When it returns it should contain the length.
+   值结果传递.
+7.bind(5, {sa_family=AF_INET, sin_port=htons(8888), sin_addr=inet_addr("0.0.0.0")}, 16) = -1 EADDRINUSE (Address already in use)
+    当调试服务器程序的时候,需要多次进行套接字的创建和连接.
+    由于主机主动断开,会出现很多CLOSE_WAIT状态.
+    客户机断开,会出现很多TIME_WAIT状态.
+8.如何实现服务器优雅的关闭?
+   设计析构函数是如何调用的,这个必须应该明白,否则线程不会死掉.也可能会出现僵尸进程
+
+9.将MyWebServer后台化操作,后台话可以成功,但是为什么后台程序没办法写日志,这是一个问题,后序继续解决这个问题哦.
+
+10.通过状态机实现HTTP协议解析.
