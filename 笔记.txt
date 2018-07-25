@@ -1,0 +1,611 @@
+1、封装mutex（禁止拷贝禁止赋值）
+   1、class MutexLock类内部定义私有变量pthread_mutex_t mutex_互斥锁。并且通过对象的构造初始化锁，析构摧毁锁
+   2、内部定义两个方法，加锁和解锁。
+   3、这种封装了Mutex已经够用了，定义对象，然后调用方法加锁接锁也可以，但是一般配对使用，为了防止忘记解或者加，于是重新定义对象RALL手法
+/*
+封装互斥锁,并通过RALL手法使用锁
+*/
+class MutexLock{
+public:
+    MutexLock(){//默认构造初始化
+        pthread_mutex_init(&mutex_ , NULL);
+    }
+
+    ~MutexLock(){//析构释放
+        pthread_mutex_destroy(&mutex_);
+    }
+
+    void lock(){//锁
+        pthread_mutex_lock(&mutex_);
+    }
+
+    void unlock(){//解锁
+        pthread_mutex_unlock(&mutex_);
+    }
+
+    pthread_mutex_t *get(){//获取锁的地址
+        return &mutex_;
+    }
+
+private:
+    pthread_mutex_t mutex_;//互斥锁
+    MutexLock(const MutexLock& rhs);//禁止拷贝
+    MutexLock& operator=(const MutexLock& rhs);//禁止赋值
+};
+2、通过RALL手法使用互斥锁（也就是通过编译器定义对象自动构造，对象生命周期结束自动析构），简化加和解锁。
+   class MutexLockGuard类仅仅传入MutexLock对象的引用即可操作加和解锁。
+   通过这种手法必须注意MutexLockGuard对象的构造必须在MutexLock之后，且MutexLockGuard不可定义无名对象，因为无名对象会里面析构，那么
+   临界区就没有建立起来。
+class MutexLockGuard{
+public:
+    MutexLockGuard(MutexLock& mutex):mutex_(mutex){//初始化并构造，然后加锁
+        mutex_.lock();
+    }
+    ~MutexLockGuard(){
+        mutex_.unlock();
+    }
+private:
+    MutexLock &mutex_;//引用,需要传入初始化
+
+    MutexLockGuard(const MutexLockGuard& rhs);//禁止拷贝
+    MutexLockGuard& operator=(const MutexLockGuard& rhs);//禁止赋值
+};
+
+
+
+3、封装条件变量
+条件变量的使用需要注意两点：
+其一 必须先加锁再判断条件，
+其二 条件判断必须在while
+class Condition{
+public:
+    //explicit禁止构造函数隐式转换
+    /*
+        void test(Condition &cond);//圆形
+        MutexLock mutex;
+        test(mutex);//如何没有explicit,那么编译器将隐式将首先定义临时Condition对象,然后通过mutex初始化.
+        此处禁止这种操作,因为不需要这种操作
+*/
+    explicit Condition(MutexLock &mutex):mutex_(mutex){
+        pthread_cond_init(&cond_ , NULL);
+    }
+
+    ~Condition(){
+        pthread_cond_destroy(&cond_);
+    }
+
+    void wait(){//等待条件满足,并等待另外一个线程唤醒
+        pthread_cond_wait(&cond_ , mutex_.get() );
+    }
+
+    void notify(){//单播,唤醒一个等待该条件的线程
+        pthread_cond_signal(&cond_);
+    }
+
+    void notifyALL(){//广播,唤醒全部等待该条件的线程
+        pthread_cond_broadcast(&cond_);
+    }
+    bool waitForSeconds(double seconds){//超时等待,可设置4.67s,超时则等待返回
+        struct timespec realTimeClock;
+        clock_gettime(CLOCK_REALTIME , &realTimeClock);//获取当前时间
+        int64_t totalNsecond = static_cast<int64_t>(realTimeClock.tv_nsec + seconds*1000000000);
+        realTimeClock.tv_sec += static_cast<__time_t>(totalNsecond/1000000000);
+        realTimeClock.tv_nsec = static_cast<__suseconds_t>(totalNsecond%1000000000);
+        return ETIMEDOUT == pthread_cond_timedwait(&cond_ , mutex_.get() , &realTimeClock);
+        //如果距离当前时间n秒后等待超时返回则true,否则是false.
+    }
+
+private:
+     MutexLock &mutex_;//传递引用,为了将互斥锁和条件变量解耦分开来.
+     pthread_cond_t cond_;//条件变量对应的变量
+     Condition(const Condition& rhs);//禁止拷贝
+     Condition& operator=(const Condition& rhs);//禁止赋值
+};
+
+4、封装倒计时锁：主要用于同步多个线程，直到条件变为0
+#include"MutexLock.h"
+#include"Condition.h"
+
+/*
+利用条件变量+互斥锁实现线程门栓功能
+*/
+class CountDownLatch
+{
+public:
+    //避免隐式的类型转换函数,这种构造函数都需要避免不必要的转换存在
+    explicit CountDownLatch(int count);
+    ~CountDownLatch();
+
+    void wait();//计数值大于0,则等待其他人到齐
+
+    void countdown();//计数减1,当为0,则唤醒其他等待
+private:
+    /*
+        注意成员变量初始化顺序是通过定义的顺序执行的先初始化mutex然后cond,否则直接出错.
+    */
+    CountDownLatch(const CountDownLatch& rhs);//禁止拷贝
+    CountDownLatch& operator=(const CountDownLatch& rhs);//禁止赋值
+    MutexLock mutex_;
+    Condition cond_;
+    int count_;
+};
+
+CountDownLatch::CountDownLatch(int count)//注意这里的构造顺序
+    : mutex_(),
+      cond_(mutex_),
+      count_(count)
+{
+
+}
+
+CountDownLatch::~CountDownLatch()
+{
+
+}
+
+void CountDownLatch::wait()
+{
+    MutexLockGuard lock(mutex_);
+
+    while(count_ > 0)//还未全部就绪,则给我等待
+        cond_.wait();
+}
+
+void CountDownLatch::countdown()
+{
+    MutexLockGuard lock(mutex_);//RALL加锁
+    --count_;
+    if(count_ == 0)//如果准备继续则通知全部
+        cond_.notifyALL();
+}
+
+   
+CountDownLatch的概念
+CountDownLatch是一个同步工具类，用来协调多个线程之间的同步，或者说起到线程之间的通信（而不是用作互斥的作用）。
+
+1、CountDownLatch能够使一个线程在等待另外一些线程完成各自工作之后，再继续执行。使用一个计数器进行实现。计数器初始值为线程的数量。当每一个线程完成自己任务后，计数器的值就会减一。当计数器的值为0时，表示所有的线程都已经完成了任务，然后在CountDownLatch上等待的线程就可以恢复执行任务。
+例如主线程依赖4个子进程加载完毕，后才继续运行。那么可以使用CountDownLatch
+主线程初始化CountDownLatch，并调用wait，子线程中调用countdown,直到count为0，则唤醒wait的进程。就实现了一个和多个之间的同步。
+
+
+2、实现多个子线程在某一时刻同时开始执行，做法是初始化一个共享的CountDownLatch(1)，将其计数器初始化为1，
+多个线程在开始执行任务前首先coundownlatch.wait()，当主线程调用 countDown() 时，计数器变为0，多个线程同时被唤醒继续执行。
+3、在线程创建的时候使用了coundownlatch，当latch为1，不就是最简单的一个条件变量等待么
+
+
+封装线程：
+1、主线程可以定义每个子线程的名字，每个线程都含有自己的线程tid。用途主要在于日志，通过定义线程名字以及tid，
+  通过日志可以清晰的记录哪个线程做了哪些事，以及哪个线程出现了问题，就更加容易定位了
+  为了简化数据在多个线程之间的同步，
+  __thread关键字定义修饰变量，这是gcc自带的线程局部存储(tls)是一种机制,通过这一机制分配的变量,每个当前线程有一个该变量的实例，变量每一个线程有一份独立实体，各个线程的值互不干扰。
+   各个线程的值互不干扰，简化了同步机制，所以首先定义ThreadData类。
+   用法基本就是通过制定线程名构造线程，然后主线程调用ThreadStart即可。最后主线程退出，调用子线程的析构函数，最后调用了pthread_detach系统调用。
+   其中可以通过全局的方法在当前线程中获取当前线程的名字以及tid，这在日志记录的时候就很重要了。   
+   https://blog.csdn.net/u014774781/article/details/48039441 讲解threadjoin和threaddetach
+/*************************定义线程类全局变量**************************/
+namespace CurrentThread//初始化
+{
+    /*
+      多个线程,每个线程都需要存储其信息的独立内存空间,可以避免使用全局变量的同步.
+      因此使用__thread修饰的POD(c语言里面的数据类型，不需要构造的)变量,对于每个线程都特有一份,根本不需要同步,简化
+      系统的设计.
+    */
+    __thread int t_cachedTid = 0;
+    __thread char t_tidString[32] = {};
+    __thread int t_tidStringLength = 6;
+    __thread const char* t_threadName = "MainEventLoop";
+}
+
+pid_t gettid()//获取线程唯一的tid,用于通信
+{
+    return static_cast<pid_t>(::syscall(SYS_gettid));
+}
+
+/*
+辅助函数,用于缓存线程tid，并将tid格式化成字符串.
+*/
+void CurrentThread::cacheTid()
+{
+    if (t_cachedTid == 0)
+    {
+        t_cachedTid = gettid();
+        t_tidStringLength = snprintf(t_tidString, sizeof t_tidString, "%5d ", t_cachedTid);
+    }
+}
+
+/*
+定义获取当前线程数据的方法，当前线程调用，则获取对应的__thread数据类型
+*/
+namespace CurrentThread
+{
+    // internal
+    extern __thread int t_cachedTid;//为了避免多次系统调用,缓存tid
+    extern __thread char t_tidString[32];//tid的string类型,便于日志输出
+    extern __thread int t_tidStringLength;//string类型长度
+    extern __thread const char* t_threadName;//线程的名字
+    void cacheTid();//获取tid函数
+
+    /*
+        以下都是内联函数哦
+    */
+    inline int tid()
+    {
+        if (__builtin_expect(t_cachedTid == 0, 0))
+        {
+            cacheTid();
+        }
+        return t_cachedTid;
+    }
+
+    inline const char* tidString()// for logging
+    {
+        return t_tidString;
+    }
+
+    inline int tidStringLength()// for logging
+    {
+        return t_tidStringLength;
+    }
+
+    inline const char* name()
+    {
+        return t_threadName;
+    }
+}
+/**********************************************************************/
+
+
+/**封装线程数据类,sturct使得定义说明符之前的成员全部是public,class则为private***/
+struct ThreadData{
+    typedef Thread::ThreadFunc ThreadFunc;
+
+    ThreadFunc func_;//存储仿函数对象
+    std::string name_;//存储线程名字
+    pid_t* tid_;//存储进程pid的指针
+    CountDownLatch* latch_;//存储锁指针,因为指向一个对象,不能重新构造
+
+    //线程数据构造函数初始化,存储线程私有数据信息
+    ThreadData(const ThreadFunc &func , const std::string &name , pid_t *tid , CountDownLatch *latch)
+        : func_(func),
+          name_(name),
+          tid_(tid),
+          latch_(latch)
+    {
+
+    }
+    void runInThread()
+    {
+        *tid_ = CurrentThread::tid();//获取当前线程tid
+        tid_ = NULL;//当前线程中指针清空
+        latch_->countdown();//通知主线程,可以继续运行了,确保子线程在主线程之前运行.
+        latch_ = NULL;//当前线程中指针清空
+        CurrentThread::t_threadName = name_.empty() ? "Thread" : name_.c_str();//从主线程获取当前线程名字.
+        prctl(PR_SET_NAME, CurrentThread::t_threadName);//用于进程重命名，主进程、子进程使用不同的命令，便于命令ps -ef查看
+        func_();//执行回调函数
+        //CurrentThread::t_threadName = "finished";
+    }
+};
+
+//pthread_creat初始化,传入startThread和ThreadData.
+//当线程执行,obj是指向初始化传入的ThreadData.所以下面进行强制转换
+//可以在线程执行体内,获取线程的信息.
+void *startThread(void *obj)//返回值类型是void *指针
+{
+    //类似C语言的强制类型转换
+    ThreadData *data = static_cast<ThreadData*>(obj);//static_cast使用,后面表达式必须加()
+    data->runInThread();//获取线程数据，并启动任务函数
+    delete data;//执行完毕,释放内存
+    return NULL;
+}
+/*******************************************************************/
+
+/*************************Thread类内函数定义**************************/
+Thread::Thread(const ThreadFunc &func , const std::string &name )
+    : func_(func),
+      threadName_(name),
+      threadStarted_(false),
+      threadJoined_(false),
+      latch_(1)
+{
+    setDefaultName();//设定初始化名字
+}
+
+Thread::~Thread()
+{
+    if(threadStarted_ && !threadJoined_)
+        pthread_detach(threadID_);
+}
+
+void Thread::threadStart()//这个由主线程调用
+{
+    //其值为假（即为0），那么它先向stderr打印一条出错信息
+    assert(!threadStarted_);//同一个线程不可以(创建)启动两次,但是对象可以调用两次,因此这里需要断定错误.
+    threadStarted_ = true;//设置为真
+    ThreadData *data = new ThreadData(func_ , threadName_ , &tid_ , &latch_);//latch_不能拷贝,否则就失效了.
+    if(pthread_create(&threadID_ , NULL , startThread , data)){
+        threadStarted_ = false;//启动失败,则标记为错误.
+        delete data;
+        return ;
+    }else{
+        latch_.wait();//线程创建成功,则先wait.
+        assert(tid_ > 0);//
+    }
+}
+
+bool Thread::threadJoin()//这由主线程调用,等待此线程终止
+{
+    assert(threadStarted_);
+    assert(!threadJoined_);
+    threadJoined_ = true;
+    return pthread_join(threadID_ , NULL);
+}
+void Thread::setDefaultName()//如果没有指定名字，则设定默认名字
+{
+    if(threadName_.empty())
+        threadName_ = "Thread";
+}
+
+/*
+封装pthread_create
+*/
+#include"CurrentThread.h"
+
+#include<assert.h>
+#include<memory.h>
+#include<stdio.h>
+#include<string>
+#include<stddef.h>//标准定义头文件,使用NULL需要
+#include<unistd.h>//包含syscall
+#include<sys/syscall.h>//包含syscall的符号常量
+#include<sys/prctl.h>
+
+#include<pthread.h>
+#include<string>
+#include"CountDownLatch.h"
+#include<functional>  //仿函数对象适配器
+
+class Thread{
+public:
+    //函数对象,封装了()操作符.形参类似函数的功能.可以传入函数指针.void ()表示传入无返回值无参数
+    typedef std::function<void ()> ThreadFunc;//定义类,用于绑定任何函数对象,并通过()调用
+
+    /* 1.构造函数初始化,如果第二个名字参数没有传入,则默认通过空string初始化
+     * 2.这种构造函数可以被编译器默认被用来当做隐式转换函数,必须禁止
+     */
+    explicit Thread(const ThreadFunc& , const std::string& name = std::string());
+
+    ~Thread();
+
+    void threadStart();
+
+    bool threadJoin();
+
+    pid_t tid() const{
+        return tid_;
+    }
+
+private:
+    Thread(Thread &rth);//禁止拷贝
+    Thread &operator=(Thread &rth);//禁止赋值
+    /*
+        注意构造函数初始化顺序必须一致性
+    */
+    void setDefaultName();//私有主要用于设定线程名称,在构造函数中调用
+    ThreadFunc func_;        //线程执行的函数
+    std::string threadName_;//线程名字
+    pthread_t threadID_;   //线程ID
+    pid_t tid_;             //线程所属进程ID
+    bool threadStarted_;   //线程是否启动
+    bool threadJoined_;    //线程是否等待其他线程结束
+    CountDownLatch latch_;  //计时器门栓
+};
+创建子线程创建过程中使用了coundownlatch，作用在于子线程可以先与主线程运行。如果子进程默认就是先运行，则主进程wait直接返回，否则主等待子先运行。
+ if(pthread_create(&threadID_ , NULL , startThread , data)){这里有个Bug，需要仔细分析这个问题所在的。
+
+
+封装线程池：
+	为何需要线程池，解决子线程处理计算的需求
+	一个互斥锁+两个条件变量搞定了线程池的封装。采取了生产者和消费者模型。
+	主线程：生产者
+	子线程：消费者
+	公用缓冲区：deque任务队列，主线程从队列尾部加入任务（生产任务），当主线程添加任务的时候，需要确保任务队列未满否则等待。
+	                           子线程从任务队列头取出任务（消费任务），当子线程消费任务的时候，需要确保任务队列未空否则等待。
+				所以NotFull和NotEmpty条件变量需要被使用。
+			    当生产的时候，先加锁，判断队列是否满了，满了则NotFull.wait等待，否则加入队列，并通知NotEmpty.notify。
+				当消费的时候，先加锁，判断队列大小，空则NotEmpty.wait等待，否则取出任务并弹出队列，并通知NotFull.notify，最后运行任务，这样仅仅在取出任务的时候加锁了。
+
+#ifndef THREADPOLL_H
+#define THREADPOLL_H
+#include"MutexLock.h"
+#include"Condition.h"
+#include"Thread.h"
+#include<deque>//任务队列
+#include<vector>
+#include<algorithm>
+#include<binders.h>
+#include<memory>
+/*
+基于生产者消费者模型写的线程池.
+生产者:主线程
+消费者:子线程
+同步:一个互斥锁+两个条件变量
+*/
+using namespace std;
+
+class ThreadPool{
+public:
+    typedef function<void ()> Task;//任务定义
+    explicit ThreadPool(const string &poolName = string("ThreadPool"));
+    ~ThreadPool();
+
+    void initThreadPool(int numberThreads , int TaskQueueSize);//初始化线程池的大小
+    void stopThreadPool();//停止线程池
+    void addTask(const Task& task);
+
+    const string& name() const
+    {
+        return poolName_;
+    }
+private:
+    ThreadPool(ThreadPool &rth);//禁止拷贝
+    ThreadPool &operator=(ThreadPool &rth);//禁止赋值
+
+    /*
+        线程池内部调用函数
+    */
+    void runInThread();//线程池内部每个线程最终执行函数，循环调用take获取任务，并执行任务，没有任务休眠，有任务执行。
+    Task takeTask();//从任务队列中获取任务.
+
+    MutexLock mutex_;//互斥锁
+    Condition taskQueueNotFull_;//针对生产者
+    Condition taskQueueNotEmpty_;//针对消费者
+    string poolName_;//线程池名字
+    size_t maxTaskQueueSize_;//任务队列大小
+    size_t numberThreads_;
+    deque<Task> taskQueue_;//任务队列
+    vector< shared_ptr<Thread> > threads_;//存储线程对象指针,因为不允许拷贝.
+    bool running_;
+};
+#endif // THREADPOLL_H				
+
+			
+#include"ThreadPool.h"
+/*
+MutexLock mutex_;//互斥锁
+Condition notFull_;//针对生产者
+Condition notEmpty_;//针对消费者
+string poolName_;//线程池名字
+size_t maxTaskQueueSize_;//任务队列大小
+deque<task> taskQueue_;//任务队列
+*/
+ThreadPool::ThreadPool(const string &poolName)
+    : mutex_(),
+      taskQueueNotFull_(mutex_),//注意初始化顺序
+      taskQueueNotEmpty_(mutex_),
+      poolName_(poolName),
+      maxTaskQueueSize_(0),
+      numberThreads_(0),
+      taskQueue_(),
+      threads_(),
+      running_(false)
+{
+
+}
+ThreadPool::~ThreadPool()
+{
+//    for(size_t i = 0 ; i < numberThreads_ ; i++){
+//        delete threads_[i];//释放线程占用内存
+//    }
+}
+
+void ThreadPool::initThreadPool(int numberThreads , int TaskQueueSize)
+{
+    assert(threads_.empty());//断定线程池为空
+
+    maxTaskQueueSize_ = TaskQueueSize;//设定最大的任务队列
+    numberThreads_ = numberThreads;
+    running_ = true;
+    //threads_.resize(numberThreads);//设定大小  这是重大错误,resize并初始化为0,必定出错
+    for(int i = 0 ; i < numberThreads ; i++){
+        char id[32] ;
+        snprintf(id , sizeof(id) , "%d" , i+1);//将id转换成字符串
+        //将线程压栈,并给每个线程命名.
+        threads_.push_back( make_shared<Thread>( std::bind(&ThreadPool::runInThread , this) , poolName_+id) );
+        threads_[i]->threadStart();//创建线程,并启动线程
+    }
+}
+
+void ThreadPool::stopThreadPool()
+{
+    {
+        MutexLockGuard lock(mutex_);
+        running_ = false;//这里必须停止.
+        taskQueueNotEmpty_.notifyALL();//唤醒全部线程,线程自动退出
+    }
+    //对于函数内每个对象,执行仿函数f(*first).
+    //也就是主函数对于每个线程指向 pthread_join(ID,NULL),等待其结束.
+    //for_each(threads_.begin() , threads_.end() ,
+    //         std::bind(&Thread::threadJoin , std::placeholders::_1) );
+    sleep(4);
+    for(auto inter = threads_.begin() ; inter != threads_.end() ; inter++)
+        (*inter)->threadJoin();
+}
+
+void ThreadPool::runInThread()
+{
+    while(running_){//循环运行，取任务，运行任务。线程池唤醒处理
+        Task task = takeTask();//从任务队列获取任务,并构造初始化task对象.
+        if(task){
+            task();//直接运行task
+        }
+    }
+}
+
+/*主线程调用添加一个任务*/
+void ThreadPool::addTask(const Task &task)
+{
+    if(threads_.empty()){//线程池空,则直接运行
+        task();
+    }else{
+        MutexLockGuard lock(mutex_);
+        //循环判断,防止虚假唤醒.
+        while(taskQueue_.size() >= maxTaskQueueSize_)
+            taskQueueNotFull_.wait();
+        assert(taskQueue_.size() < maxTaskQueueSize_);
+
+        taskQueue_.push_back(task);
+
+        taskQueueNotEmpty_.notify();//通知任务队列非空,消费者可以消费了
+    }
+}
+
+/*取出一个任务*/
+ThreadPool::Task ThreadPool::takeTask()//多线程,消费者调用.获取任务需要同步.
+{
+    MutexLockGuard lock(mutex_);
+    while(running_ && taskQueue_.empty()){//没有任务,则线程等待
+        taskQueueNotEmpty_.wait();
+    }
+    Task task;
+    if(!taskQueue_.empty()){
+        //为什么需要加这一句?因为当任务做完,线程全部阻塞与上面的wait.但是调用stopThreadPool唤醒子线程让其退出,需要里面执行下面的语句.
+        //队列为空,会从队列中取出无关的东西,然后task()执行,导致收到段错误.于是判断让其返回空即可，这里将SIGSEGV的Bug修复了。很关键
+        task = taskQueue_.front();//从任务队列头获取任务;
+        taskQueue_.pop_front();//弹出任务
+        taskQueueNotFull_.notify();//任务队列没有满,通知生产着可以生产了.
+    }
+    return task;//如果停止且无任务,则返回空,否则在结束之前执行一个任务.
+    //这就是多线程编写需要注意的地方.
+}	
+
+封装多线程异步日志系统：
+ 
+
+封装Epoll事件循环：
+
+封装EpollLoop(设计准则)：
+1、如何处理定时器事件
+2、如何处理IO事件 
+
+封装EpollLoopInThread(设计准则)：
+
+
+封装HTTP连接处理：
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
