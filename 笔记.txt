@@ -579,9 +579,730 @@ ThreadPool::Task ThreadPool::takeTask()//多线程,消费者调用.获取任务�
 }	
 
 封装多线程异步日志系统：
+对于服务器端程序，日志功能是必不可少的，所以实现一个高效的日志非常关键：
+    1、为了避免每次appendfile的时候，都调用系统write函数，这样会降低性能，因为write一次就会陷入内核一次，对于短且多的日志，可能会占用大量IO操作。
+	   使用系统库流函数，此库函数允许用户设定一块内存缓冲区，库函数负责管理这块缓冲区，写日志会首先写入缓冲区，合适的时候再调用write操作，解决了上述Bug。
+	   下面是实现
+/*
+ * 用于创建或者打开文件,然后添加数据行都末尾
+ * 封装底层的fwrite和fflush
+ * 数据流向从用户缓冲区->内核缓冲区->磁盘数据
+*/
+class AppendFile
+{
+public:
+    explicit AppendFile(std::string filename = std::string("log"));
+    ~AppendFile();
+    void flush();//将用户缓冲区刷新到内核缓冲区.
+    void append(const char *logline , const size_t len);//添加到文件末尾,刷新到用户缓冲区.
+private:
+    AppendFile(AppendFile &rth);//禁止拷贝
+    AppendFile &operator=(AppendFile &rth);//禁止赋值
+	
+    size_t write(const char *logline , size_t len);//内部实际的fflush操作调用write
+    FILE *fp_;//文件流指针,指向打开的文件.
+    char buffer_[64*1024];//stdio用户缓冲区设定64kb
+};
+
+///******************************************************************************//
+AppendFile::AppendFile(std::string filename)
+    : fp_(fopen(filename.c_str() , "ae"))//'e' for O_CLOEXEC , 'a'表示要么追加写入存在的文件,要么创建文件并追加.
+{
+    setbuffer(fp_ , buffer_ , sizeof(buffer_));//设置用户写缓冲区,仅仅写入缓冲区,写满或者fflush后通过write写入内核缓冲区
+}
+
+AppendFile::~AppendFile()
+{
+    fclose(fp_);//关闭fp_并将用户缓冲区数据全部刷新到内核缓冲区等待写入磁盘
+}
+
+void AppendFile::flush()
+{
+    assert(fflush(fp_) == 0);
+}
+//将数据添加到用户缓冲区
+void AppendFile::append(const char *logline , const size_t len)
+{
+    size_t n = write(logline , len);//返回写入用户缓冲区的前多少字节.
+    size_t remain = len - n;//如果缓冲区已满,则继续写,直到写完，当64kb写满，fwrite会自动调用write
+	
+    while(remain > 0){//直到remain为0,则全部写入用户缓冲区.
+        size_t x = write(logline + n , remain);
+        if(x == 0){//返回０，则应该是有错误
+            int err = ferror(fp_);
+            if(err){
+                fprintf(stderr , "AppendFile::append() failed %s!\n" , strerror(err));//向标准错误写
+            }
+            break;
+        }
+        n = n + x;//记录已经写入了多少
+        remain = remain - x;//剩余大小字节
+    }
+}
+size_t AppendFile::write(const char *logline , size_t len)
+{
+    return fwrite_unlocked(logline, 1, len, fp_);
+}
+
+
+	2、AppendFile操作还是比较原始。其一日志前端肯定被多线程调用（append及加锁），其二当append次数操作count是则自动fflush到内核缓冲区
+	/*
+	再次封装AppendFile,用于自动flush操作,并且为了多线程安全使用,通过互斥锁保护起来.
+	*/
+	class LogFile
+	{
+	public:
+		LogFile(const std::string &basename , int autoFlushEveryN);
+		~LogFile();
+
+		void append(const char *logline , const size_t len);
+		void flush();
+	private:
+		LogFile(LogFile &rth);//禁止拷贝
+		LogFile &operator=(LogFile &rth);//禁止赋值
+
+		const std::string basename_;
+		const int autoFlushEveryN_;//定义多少次append之后,自动flush
+		int count_;//计数
+		MutexLock mutex_;//互斥锁
+		AppendFile file_;//流封装
+	};
+	LogFile::LogFile(const std::string &basename , int autoFlushEveryN)
+		: basename_(basename),
+		  autoFlushEveryN_(autoFlushEveryN),
+		  count_(0),
+		  mutex_(),
+		  file_(basename_)
+	{
+
+	}
+	LogFile::~LogFile()
+	{
+
+	}
+
+	void LogFile::append(const char *logline , const size_t len)
+	{
+		MutexLockGuard lock(mutex_);//多线程调用，必须加锁，否则日志乱了
+		file_.append(logline , len);
+		++count_;
+		if(autoFlushEveryN_ < count_){//超过多次，则flush一次，将用户缓冲区写入内核缓冲区。
+			count_ = 0;
+			file_.flush();
+		}
+	}
+	void LogFile::flush()
+	{
+		MutexLockGuard lock(mutex_);
+		file_.flush();
+	} 
+    3、构建多线程异步日志，后端线程专门将日志写入file，工作线程则调用前端接口共同维护两个缓冲区
+	   前端接口负责往用户定义的缓冲区中写，为了简化日志的append功能，可以实现类似cout << a << b的功能，那么必须重载<<运算符，并且必须重载多种形式，使其可以支持int char float string等数据类型。
+	
+
+	首先定义一个固定缓冲区模板，前端调用肯定先将日志写入此缓冲区。
+	然后定义LogStream类，主要用于重载运算符<< 通过重载运算符函数往固定缓冲区添加数据。
+	通过定义LogStream log对象，即可通过 log<<2<<3等调用其重载运算符了。
+
+const int kSmallBuffer = 4000;  //4Kb
+const int kLargeBuffer = 4000 * 1000;//4Mb
+
+/*
+ * 简单封装一个固定大小的缓冲区,通过模板参数传入参数确定缓冲区的大小,支持add操作或者avail操作
+ */
+template<int SIZE>
+class FixedBuffer
+{
+public:
+    FixedBuffer()
+    : cur_(data_)
+    {
+
+    }
+    ~FixedBuffer(){}
+
+    void append(const char *buf , size_t len)//将buf中的内容添加到固定缓冲区
+    {
+        if(avail() > static_cast<int>(len)){
+            memmove(cur_ , buf , len);//防止内存重叠,很有效
+            cur_ += len;//指向后续指针
+        }
+
+    }
+    const char *data() const//缓冲区首地址
+    {
+        return data_;
+    }
+
+    int length() const//缓冲区中已有数据长度
+    {
+        return static_cast<int>(cur_ - data_);
+    }
+
+    char *current()//数据指针当前位置
+    {
+        return cur_;
+    }
+
+    int avail()//缓冲区剩余可用空间
+    {
+        return (SIZE - length());
+    }
+
+    void add(size_t len)//数据指针前移动len位
+    {
+        cur_ += len;
+    }
+    void reset()//缓冲区数据指针复位
+    {
+        cur_ = data_;
+    }
+    void bzero()//缓冲区数据清0
+    {
+        memset(data_ , 0 , sizeof(data_));
+    }
+
+private:
+    FixedBuffer(FixedBuffer &rth);//禁止拷贝
+    FixedBuffer &operator=(FixedBuffer &rth);//禁止赋值
+    char data_[SIZE];//简单的缓冲区大小
+    char *cur_;//指向当前没有使用的缓冲区首部位置，利用一个指针即可处理
+};
+
+/*
+ * 此类主要用于操作符的重载,使得日志可以如同 log<< 使用比较简单.
+ *
+ */
+class LogStream
+{
+public:
+    //1.函数重载运算符并实现多态.返回引用,完全是为了 log<<12<<er等等操作
+    //2.区分reinterpret_cast与static_cast
+    /*
+        c类型转换:过于粗鲁区分度不高,并且难以识别,用下面的四种可以明确转换的用途.
+        static_cast 基本和C风格强制转换一样强大.但是不能将struct转换成int或者double转换成指针,且不能从表达式中去除const属性
+        const_cast 最普通用途就是将对象的const属性去掉.
+        dynamic_cast 安全的沿着类的继承关系向下转换.将基类指针或引用安全地转换成派生类指针或引用.转换失败则返回NULL,或抛出异常
+        reinterpret_cast 普通用于就是用于函数指针类型之间的转换.
+    */
+    typedef FixedBuffer<kSmallBuffer> Buffer;//一条消息最长4Kb
+    LogStream()
+    {
+    }
+    ~LogStream(){}
+
+    void append(const char* data, int len)//将数据添加到buffer_中
+    {
+        buffer_.append(data, len);
+    }
+
+    const Buffer& buffer() const//获取buffer_引用
+    {
+        return buffer_;
+    }
+
+    void resetBuffer()//缓冲区重置
+    {
+        buffer_.reset();
+    }
+
+    LogStream& operator<<(bool val)
+    {
+        buffer_.append((val ? "1" : "0") , 1);//bool类型通过1或者0表示
+        return *this;
+    }
+
+    LogStream& operator<<(short val)
+    {
+        formatInteger(val);
+        return *this;
+    }
+    LogStream& operator<<(unsigned short val)
+    {
+        formatInteger(val);
+        return *this;
+    }
+
+    LogStream& operator<<(int val)
+    {
+        formatInteger(val);
+        return *this;
+    }
+    LogStream& operator<<(unsigned int val)
+    {
+        formatInteger(val);
+        return *this;
+    }
+
+    LogStream& operator<<(long val)
+    {
+        formatInteger(val);
+        return *this;
+    }
+    LogStream& operator<<(unsigned long val)
+    {
+        formatInteger(val);
+        return *this;
+    }
+
+    LogStream& operator<<(long long val)
+    {
+        formatInteger(val);
+        return *this;
+    }
+    LogStream& operator<<(unsigned long long val)
+    {
+        formatInteger(val);
+        return *this;
+    }
+
+    LogStream& operator<<(char val)
+    {
+        buffer_.append(&val , 1);//bool类型通过1或者0表示
+        return *this;
+    }
+    LogStream& operator<<(const char *val)
+    {
+        if(val != NULL)//防御性编程
+            buffer_.append(val , strlen(val));//bool类型通过1或者0表示
+        else
+            buffer_.append("(null)" , 6);
+        return *this;
+    }
+
+    LogStream& operator<<(const unsigned char *val)
+    {
+        *this << reinterpret_cast<const char *>(val);//????为什么是这样的
+        return *this;
+    }
+
+
+    LogStream& operator<<(float val)
+    {
+        *this << static_cast<double>(val);
+        return *this;
+    }
+    LogStream& operator<<(double val)
+    {
+        if (buffer_.avail() >= kMaxNumericSize){
+            int len = snprintf(buffer_.current() , kMaxNumericSize , "%.12g" , val);
+            buffer_.add(len);
+        }
+        return *this;
+    }
+    LogStream& operator<<(long double val)
+    {
+        if (buffer_.avail() >= kMaxNumericSize){
+            int len = snprintf(buffer_.current() , kMaxNumericSize , "%.12Lg" , val);
+            buffer_.add(len);
+        }
+        return *this;
+    }
+    LogStream& operator<<(const std::string &val)//通过临时对象重载string类型,临时对象属于右值,不允许修改其内容,因此必须const
+    {
+        buffer_.append(val.c_str() , val.length());//string类型
+        return *this;
+    }
+private:
+    LogStream(LogStream &rth);//禁止拷贝
+    LogStream &operator=(LogStream &rth);//禁止赋值
+
+    const int kMaxNumericSize = 32;
+
+    template<typename T>
+    size_t convert(char buf[], T value)//模板转换函数,整数转换成字符串
+    {
+        T i = value;
+        char *p = buf;
+        const char digits[] = "9876543210123456789";
+        const char *zero = digits + 9;
+        do
+        {
+            int lsd = static_cast<int>(i % 10);//取出最低位
+            i /= 10;
+            *p++ = zero[lsd];//直接将字符串赋值进去
+        } while (i != 0);
+
+        if (value < 0)
+        {
+            *p++ = '-';
+        }
+        *p = '\0';
+        std::reverse(buf, p);//反转一下
+        return p - buf;//返回长度
+    }
+
+    template<typename T>
+    void formatInteger(T v)//私有的模板函数,将各种数字类型,转换成对应的字符串类型,便于写入Log
+    {
+        // buffer容不下kMaxNumericSize个字符的话会被直接丢弃
+        if (buffer_.avail() >= kMaxNumericSize)
+        {
+            size_t len = convert(buffer_.current(), v);//直接格式化到buffer_中，并修改add的位置
+            buffer_.add(len);//缓冲区+len
+        }
+    }
+    Buffer buffer_;//缓冲区
+};
+	
+	4、定义Logger类，用于封装LogStream，并通过RALL手法封装临时匿名对象，并且每次传入临时对象行数和文件名以及日志消息，简化上次用户调用。
+	   并通过pthread_once初始化AsyncLogger_对象。
+	   Logger构造的时候，将时间 正文 文件名 行 写入LogStream对应的buffer中
+	   Logger在析构的时候，将buffer中的日志append到双端缓冲区（因为append多进程调用，所以必须加锁，防止日志错乱）。
+	   所以进程写日志可以使用宏定义匿名对象，自动构造和析构将其append到双端缓冲区。
+class Logger
+{
+public:
+    //当前文件以及对应的行
+    Logger(const char *fileName, int line);
+
+    ~Logger();
+
+    LogStream& stream()
+    {
+        return stream_;
+    }
+
+    /*
+        下面两个必须是静态的,因为可以使用外部设定名字
+    */
+    static void setLogFileName(std::string fileName)
+    {
+        logFileName_ = fileName;
+    }
+
+    static std::string getLogFileName()
+    {
+        return logFileName_;
+    }
+
+private:
+    void formatTime();
+
+    LogStream stream_; // << 重载数据流,构造函数将日志写入stream_ , 析构函数将日志从stream_写入LogFile文件
+    std::string fileName_;//这条日志所在的文件名
+    int line_;//这条日志所在的文件名对应的行数
+    //上述三个变量,全部临时对象独有
+
+    static std::string logFileName_;//Log日志名字,全部公用
+};
+#define LOG Logger(__FILE__, __LINE__).stream()//产生一个临时对象,操作完毕立马析构,通过这种模式简化写入LogFile文件的操作
+
+
+
+static pthread_once_t once_control_ = PTHREAD_ONCE_INIT;
+static std::shared_ptr<AsynLogging> AsyncLogger_;//静态对象指针
+
+/*
+通过RALL封装,
+1.构造的时候初始化异步日志.
+2.析构的时候,将日志写入文件.
+*/
+void once_init()//启动后台消费进程，并且
+{
+    AsyncLogger_ = std::make_shared<AsynLogging>( Logger::getLogFileName() , 40 );//new一个后台日志线程
+    AsyncLogger_->start();//后台线程开始运行
+}
+
+void output(const char* msg, int len)
+{
+    pthread_once(&once_control_, once_init);//保证once_init函数仅仅初始化一次AsyncLogger_,以后append即可
+    AsyncLogger_->append(msg, len);
+}
+
+
+
+Logger::Logger(const char *fileName, int line)
+  : stream_(),
+    fileName_(fileName),
+    line_(line)
+{
+    formatTime();//构造函数初始化文件名 行数 以及当前日志产生时间
+}
+
+Logger::~Logger()//规定单条日志最长4k，否则直接丢弃。
+{
+    stream_ << " - " << fileName_ << ':' << line_ << '\n';//日期时间 - 正文 源文件名:行号
+    const LogStream::Buffer &temp = stream_.buffer();
+    output(temp.data() , temp.length());//将stream_中的内容缓存到logFile中
+}
+
+void Logger::formatTime()
+{
+    struct timeval tv;    
+    time_t time;
+    char str_t[26] = {0};
+
+    gettimeofday(&tv, NULL);//获取日历时间
+
+    time = tv.tv_sec;
+
+    struct tm* p_time = localtime(&time);
+
+    strftime(str_t, 26, "%Y-%m-%d %H:%M:%S ", p_time);//时间 正文 源文件名:行号
+
+    stream_ << str_t;//载入缓冲区
+}
+
+std::string Logger::logFileName_ = "wangjun_WebServer.log";	
  
 
-封装Epoll事件循环：
+5、封装多线程异步日志，后端线程
+
+
+
+/*
+多线程异步日志（维护缓冲区，前端缓冲区和后端进程，通过条件变量控制）:
+1.多个线程同时写一个日志文件,需要通过锁同步机制.
+2.缓冲区写满一个,或者时间到,则通过条件变量通知后台进程写日志.
+
+1、当1缓冲区写满的时候，则可唤醒后端线程来消费。
+2、在等待40s后，如果一直没写满，则也后端线程也会醒来进行消费，交换缓冲区。
+3、并且缓冲区的交换使用了std::move直接交换对象内部指针，加速处理对象。
+*/
+class AsynLogging
+{
+public:
+    AsynLogging(const std::string logName , int flushInterval = 3);
+    ~AsynLogging()
+    {
+        if(running_)
+            stop();
+    }
+    void start()
+    {
+        running_ = true;
+        thread_.threadStart();
+        latch_.wait();//主线程等待子线程运行threadFunc
+    }
+    void stop()
+    {
+        running_ = false;
+        cond_.notify();//通知醒过来
+        thread_.threadJoin();//回收thread的资源
+    }
+    void append(const char * logline , int len);//前端调用,最核心代码
+private:
+    AsynLogging(AsynLogging &rth);//禁止拷贝
+    AsynLogging &operator=(AsynLogging &rth);//禁止赋值
+
+    void threadFunc();//后端线程执行,最核心代码
+    typedef FixedBuffer<kLargeBuffer> Buffer;//维护 4M 大型缓冲区类型定义
+    typedef std::vector<std::shared_ptr<Buffer>> BufferVector;//通过vector管理多个缓冲区类型定义
+    typedef std::shared_ptr<Buffer> BufferPtr;//缓冲区智能指针类型定义
+
+    Thread thread_;
+
+    BufferPtr currentBuffer_;//指向当前缓冲区
+    BufferPtr backupBuffer_; //指向备用缓冲区
+    std::string logName_;//日志名称
+    const int flushInterval_;//每隔多少s,将当前缓冲区日志写入文件
+    BufferVector buffers_;//用于管理多个缓冲区,可能出现一种情况,就是后端在写入内核的时候,前端写得过猛,可能一个缓冲区不够，所以可能需要多个缓冲区备份，正常情况下一个buffer即可
+
+    MutexLock mutex_;
+    Condition cond_;//用于通知后端线程的写日志.
+
+    CountDownLatch latch_;//线程创建的时候,确保子线程立即运行.
+
+    bool running_;//指示后端log线程是否运行.
+};
+AsynLogging::AsynLogging(const std::string logName , int flushInterval)
+    : thread_(std::bind(&AsynLogging::threadFunc , this) , std::string("logThread") ),
+      currentBuffer_(new Buffer),
+      backupBuffer_(new Buffer),
+      logName_(logName),
+      flushInterval_(flushInterval),
+      buffers_(),
+      mutex_(),
+      cond_(mutex_),
+      latch_(1),
+      running_(false)
+{
+    //assert(logName_.size() > 0 && logName_[0] == '/');//确保日志路径正确
+    //前端缓冲区清空
+    currentBuffer_->bzero();
+    backupBuffer_->bzero();
+    buffers_.reserve(16);//预分配16个管理缓存区的空间.
+}
+
+//供前端调用，往双端缓冲区中写入数据，注意这里必须加锁，因为多个线程可以同时调用。都是尽量为了避免在持有锁的时候写日志
+void AsynLogging::append(const char * logline , int len)
+{
+    MutexLockGuard lock(mutex_);//必须互斥
+    if(currentBuffer_->avail() > len)//缓冲区可用空间大于len,则直接加入当前缓冲区
+        currentBuffer_->append(logline , len);
+    else{//否则将当前空间,加入buffers管理,并替换新的缓冲区
+        buffers_.push_back(std::move(currentBuffer_));//将currentBuffer_对象内部数据,移动到vector对象中,避免了share_ptr对象的拷贝构造和析构.
+        if(backupBuffer_){//如果备份缓冲区非空,则直接交换,为下次备份记录日志
+            currentBuffer_ = std::move(backupBuffer_);//将缓冲区指向的内存复制为当前
+            currentBuffer_->reset();
+        }
+        else{
+            currentBuffer_.reset(new Buffer);//重置 当前智能指针 指向的内存
+            currentBuffer_->reset();//重置内存缓冲区指针
+        }
+        currentBuffer_->append(logline , len);//将日志添加
+        cond_.notify();//通知线程来消费
+    }
+}
+
+void AsynLogging::threadFunc()
+{
+    assert(running_ == true);
+    latch_.countdown();//运行,通知主线程开始运行
+
+    LogFile output(logName_ , 4);//新建日志,名字可以自定义，并多少次写file然后flush一次
+
+    BufferPtr newBuffer1(new Buffer);//新建临时缓冲区1，一直没有析构
+    BufferPtr newBuffer2(new Buffer);//新建临时缓冲区2，一直没有析构
+
+    BufferVector buffersToWrite;//临时接管buffers_便于前端继续不阻塞写数据
+    buffersToWrite.reserve(16);
+
+    while(running_){
+        {   //临界区主要用于交换内存区域,并分配临时内存
+            MutexLockGuard lock(mutex_);//必须互斥
+            if(buffers_.empty())//这是非典型应用,不可防止虚假唤醒.
+                cond_.waitForSeconds(flushInterval_);
+            //到这里,证明有数据了,可以继续处理了
+            buffers_.push_back(std::move(currentBuffer_));//再次将当前缓冲区数据移入buffers管理
+
+            currentBuffer_ = std::move(newBuffer1);//移入临时缓存,为了后续前端继续写
+			
+            buffersToWrite.swap(buffers_);//交换buffers内部的指针
+
+            if(!backupBuffer_)//预分配backupBuffer
+                backupBuffer_ = std::move(newBuffer2);
+        }
+        assert(!buffersToWrite.empty());//断定非空
+
+        if(buffersToWrite.size() > 25){//这里满足的条件就是,在后端线程append的时候,前端疯狂写入很多日志,导致buffers非常大，这种情况几乎不可能
+            buffersToWrite.erase(buffersToWrite.begin()+2, buffersToWrite.end());//仅仅保留前2个日志,后面直接丢弃.
+        }
+        for(size_t i = 0 ; i < buffersToWrite.size() ; i++)//将缓冲区内部数据全部加入流中.
+            output.append(buffersToWrite[i]->data() , buffersToWrite[i]->length());
+        if(buffersToWrite.size() > 2)
+            buffersToWrite.resize(2);//扩展为大小2
+
+        if(!newBuffer1){//分配缓存1
+            assert(!buffersToWrite.empty());
+            newBuffer1 = buffersToWrite.back();
+            buffersToWrite.pop_back();
+            newBuffer1->reset();
+        }
+        if (!newBuffer2)//分配缓存2
+        {
+            assert(!buffersToWrite.empty());
+            newBuffer2 = buffersToWrite.back();
+            buffersToWrite.pop_back();
+            newBuffer2->reset();
+        }
+        buffersToWrite.clear();//清空buffer
+        output.flush();//流中的数据flush到内存缓冲区
+    }
+    output.flush();//flush到内存缓冲区
+}
+//这样就产生了高性能日志开发
+
+
+封装Epoll事件循环，Reactor模型可以处理IO时间和定时器事件
+	对于Epoll的封装很简单，主要是封装了对应的API。
+	1、封装epoll_add , epoll_wait , epoll_mod函数
+/*
+封装事件IO复用
+*/
+
+class Epoll
+{
+public:
+    Epoll();
+    ~Epoll();
+    void EpollAdd(FileEvent &fileEvent);//添加事件
+    void EpollMod(FileEvent &fileEvent);//修改事件
+    void EpollDel(FileEvent &fileEvent);//删除事件
+    std::vector<struct epoll_event> EpollDispatch(int timeout);//事件分发,阻塞时间由定时器事件决定
+    int GetEpollFd();//获取epoll的fd
+private:
+    Epoll(Epoll &rth);//禁止拷贝
+    Epoll &operator=(Epoll &rth);//禁止赋值
+    static const int MAXFDS = 1000;//假如epoll管理的最大fd个数
+    static const int EPOLLWAIT_TIME = 1000;//默认阻塞1s,为了比较及时处理定时器事件
+    int epollFd_;
+    std::vector<struct epoll_event> events_;//返回就绪事件列表
+};
+
+Epoll::Epoll()
+    : epollFd_(epoll_create(MAXFDS)),//初始化epoll
+      events_(MAXFDS) //分配1000个元素的数组
+{
+    assert(epollFd_ > 0);
+}
+Epoll::~Epoll()
+{
+
+}
+void Epoll::EpollAdd(FileEvent &fileEvent)//添加事件
+{
+    /*
+        尽量简单,没有防御性编程特性
+    */
+    //Syscall param epoll_ctl(event) points to uninitialised byte(s)
+    //避免valgrind的警告,很牛逼
+    struct epoll_event event = {0};//avoid valgrind warning
+    int fd = fileEvent.getFd();//获取当前请求的fd
+
+    fileEvent.EqualAndUpdateLastEvents();//保存当前事件,为修改准备
+
+    event.data.fd = fd;//返回标记哪个事件就绪
+    event.events = fileEvent.getEvent() | EPOLLET ;//获取当前请求的事件，并且是水平触发。
+    if(epoll_ctl(epollFd_ , EPOLL_CTL_ADD , fd , &event) < 0){
+        fileEvent.rest();
+        perror("epoll_add error");
+    }
+}
+void Epoll::EpollMod(FileEvent &fileEvent)//修改事件
+{
+    int fd = fileEvent.getFd();//获取当前请求的fd
+    if(!fileEvent.EqualAndUpdateLastEvents()){//如果这次感兴趣事件,和上一次不一样,那么就是修改,如果一样了,就不需要修改可以少一个系统调用
+        struct epoll_event event;
+        event.data.fd = fd;//返回标记哪个事件就绪
+        event.events = fileEvent.getEvent();//获取当前请求的事件
+        if(epoll_ctl(epollFd_ , EPOLL_CTL_MOD , fd , &event) < 0){
+            fileEvent.rest();
+            perror("epoll_mod error");
+        }
+    }
+}
+void Epoll::EpollDel(FileEvent &fileEvent)//删除事件
+{
+    int fd = fileEvent.getFd();//获取当前请求的fd
+    struct epoll_event event;
+    event.data.fd = fd;//返回标记哪个事件就绪
+    event.events = fileEvent.getEvent();//获取当前请求的事件
+    if(epoll_ctl(epollFd_ , EPOLL_CTL_DEL , fd , &event) < 0){
+        perror("epoll_mod error");
+    }
+    fileEvent.rest();
+}
+std::vector<struct epoll_event> Epoll::EpollDispatch(int timeout)//事件分发,阻塞时间由定时器事件决定
+{
+    std::vector<struct epoll_event> res;
+    int eventnums =  epoll_wait(epollFd_, &(*events_.begin()), events_.size(), timeout);
+    for(int i = 0 ; i < eventnums ;i++){//返回所有就绪事件
+        res.push_back(events_[i]);
+    }
+    return res;//返回就绪的文件描述符，涉及vector的拷贝
+}
+int Epoll::GetEpollFd()//获取epoll的fd
+{
+    return epollFd_;
+}
+
+封装IO事件：
+
+封装时间事件：
+
+
 
 封装EpollLoop(设计准则)：
 1、如何处理定时器事件
